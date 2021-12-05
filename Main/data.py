@@ -9,8 +9,8 @@ from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
 from collections import defaultdict
 
-# FILE_DIR = "../Data/train.csv"
-FILE_DIR = "../Data/test.csv"
+FILE_DIR = "../Data/train.csv"
+# FILE_DIR = "../Data/test.csv"
 
 # Bert tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
