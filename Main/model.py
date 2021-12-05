@@ -50,11 +50,11 @@ class Model(nn.Module):
 ### TRAIN
 def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dataset_size):
     model.train()
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+    # best_model_wts = copy.deepcopy(model.state_dict())
 
     for epoch in tqdm(range(num_epochs)):
-        for phase in ['train', 'test']:
+        # for phase in ['train', 'val']:
+        for phase in ['train']:
             if phase=='train':
                 model.train()
             else:
@@ -81,21 +81,21 @@ def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dat
                 running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(y_predict==y)
 
-            epoch_loss = running_loss / dataset_size['phase']
-            epoch_acc = running_corrects.double() / dataset_size['phase']
+            # epoch_loss = running_loss / dataset_size['phase']
+            # epoch_acc = running_corrects.double() / dataset_size['phase']
 
-            if epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+            # if epoch_acc > best_acc:
+            #     best_acc = epoch_acc
+            #     best_model_wts = copy.deepcopy(model.state_dict())
 
-                torch.save(best_model_wts, osp.join(Config['./'], Config['./'], 'model.pth'))
-                print('Model saved at: {}'.format(osp.join(Config['./'], Config['./'], 'model.pth')))
+                # torch.save(best_model_wts, osp.join(Config['./'], Config['./'], 'model.pth'))
+                # print('Model saved at: {}'.format(osp.join(Config['./'], Config['./'], 'model.pth')))
 
             
             
             print(f'Epoch: {epoch+1:02d}, ' +
                 f'Loss: {running_loss / len(dataloader.dataset):.4f}, ' + 
-                f'accuracy: {correct / dataset_size}')
+                f'accuracy: {running_corrects / dataset_size[phase]}')
 
     print('Finished Training')
 
