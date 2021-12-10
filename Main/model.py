@@ -25,7 +25,7 @@ class Model(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         
-        self.rnn = nn.GRU(self.input_size, self.hidden_size, batch_first=True)
+        self.rnn = nn.LSTM(self.input_size, self.hidden_size, batch_first=True)
         self.fc = nn.Linear(self.hidden_size, self.output_size)
         self.sigm = nn.Sigmoid()
         
