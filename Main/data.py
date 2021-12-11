@@ -9,8 +9,8 @@ from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
 from collections import defaultdict
 
-FILE_DIR = "../Data/train.csv"
-# FILE_DIR = "../Data/test.csv"
+FILE_DIR_TRAIN = "../Data/train.csv"
+FILE_DIR_TEST = "../Data/test.csv"
 
 # Bert tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -43,7 +43,7 @@ def token_lengths(file_name: str):
         plt.show()
 
 
-def process_sentences(file_name: str):
+def process_sentences(file_name: str, train = True):
     data = defaultdict(dict)
     with open(file_name, "r", encoding="utf8") as f:
         reader = csv.reader(f, delimiter=",")
@@ -53,26 +53,27 @@ def process_sentences(file_name: str):
                 data[line[0]]['keyword'] = line[1]
                 data[line[0]]['location'] = line[2]
                 data[line[0]]['text'] = line[3]
-                data[line[0]]['target'] = line[4]
+                if train:
+                    data[line[0]]['target'] = line[4]
                 data[line[0]]['embedding'] = Bert_embed(line[3])
                 ids_save.append(line[0])
             if i % 20 == 0:
-                print(i, " / 10873")
+                print(i, "lines done")
     return data, ids_save
 
-def Bert_embed(utterance: str):
-    # Tokenize the utterance
-    marked_utterance = "[CLS] " + utterance
-    tokenized_utterance = tokenizer.tokenize(marked_utterance)
+def Bert_embed(sentence: str):
+    # Tokenize the sentence
+    marked_sentence = "[CLS] " + sentence
+    tokenized_sentence = tokenizer.tokenize(marked_sentence)
     # truncate or pad
-    if len(tokenized_utterance) >= T:
-        fixed_tokens = tokenized_utterance[:T]
+    if len(tokenized_sentence) >= T:
+        fixed_tokens = tokenized_sentence[:T]
         attention_mask = [1] * T
 
     else:
         fixed_tokens = ["[PAD]" for i in range(T)]
-        fixed_tokens[:len(tokenized_utterance)] = tokenized_utterance
-        attention_mask = [1] * len(tokenized_utterance) + [0] * (T - len(tokenized_utterance))
+        fixed_tokens[:len(tokenized_sentence)] = tokenized_sentence
+        attention_mask = [1] * len(tokenized_sentence) + [0] * (T - len(tokenized_sentence))
     indexed_tokens = tokenizer.convert_tokens_to_ids(fixed_tokens)
     # Convert inputs to PyTorch tensors
     tokens_tensor = torch.tensor([indexed_tokens])
@@ -81,19 +82,32 @@ def Bert_embed(utterance: str):
     model.eval()
     with torch.no_grad():
         outputs = model(tokens_tensor, attention_mask = attention_tensor)
-    # output (all tokens of last layer) is of shape 768* 1
+    # output (all tokens of last layer) is of shape 768 x 50
     output = torch.transpose(outputs[0][0, :, :], 0, 1)
-    print(output.size())
     return output
 
 if __name__ == '__main__':
-    # token_lengths(FILE_DIR)
+    # token_lengths(FILE_DIR_TRAIN)
 
-    data, ids = process_sentences(FILE_DIR)
-    # save
-    with open("dict.pkl", "wb") as tf:
-        pickle.dump(data,tf)
-    with open("ids.pkl", "wb") as tf:
-        pickle.dump(ids,tf)
+    val = input("train data or test data, enter 'train' or 'test': ")
+    if val == 'train':
+        data, ids = process_sentences(FILE_DIR_TRAIN)
+        # save
+        with open("dict_train.pkl", "wb") as tf:
+            pickle.dump(data,tf)
+        with open("ids_train.pkl", "wb") as tf:
+            pickle.dump(ids,tf)
+    elif val == 'test':
+        data, ids = process_sentences(FILE_DIR_TEST, False)
+        # save
+        with open("dict_test.pkl", "wb") as tf:
+            pickle.dump(data,tf)
+        with open("ids_test.pkl", "wb") as tf:
+            pickle.dump(ids,tf)
+    else:
+        print("invalid input")
+    
+    
+    
 
         

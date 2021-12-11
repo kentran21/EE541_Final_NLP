@@ -8,14 +8,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pickle
+import os.path as osp
+import csv
 
-from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 EMBEDDING_DIM = 768
 HIDDEN_DIM = 400   
+MODEL_PATH = "../DATA/"
 
 class Model(nn.Module):
     def __init__(self, input_size, hidden_size, output_size = 1):
@@ -49,12 +51,15 @@ class Model(nn.Module):
 
 ### TRAIN
 def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dataset_size):
-    model.train()
     # best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
+    train_loss_sv = []
+    val_loss_sv = []
+    train_acc_sv = []
+    val_acc_sv = []
 
     for epoch in tqdm(range(num_epochs)):
-        # for phase in ['train', 'val']:
-        for phase in ['train']:
+        for phase in ['train', 'val']:
             if phase=='train':
                 model.train()
             else:
@@ -63,41 +68,48 @@ def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dat
             running_loss = 0
             running_corrects = 0
 
-            for x, y in tqdm(dataloader):
+            for x, y in tqdm(dataloader[phase]):
                 x = torch.transpose(x,1,2)
                 x = x.to(device)
                 y = y.to(device)
+                optimizer.zero_grad()
 
-                yhat = model(x)
-                loss = criterion(yhat, y)
-                # y = torch.Tensor([1 if x > 0.5 else 0 for x in yhat])
-                y_predict = torch.round(yhat)
+                with torch.set_grad_enabled(phase=='train'):
+                    yhat = model(x)
+                    loss = criterion(yhat, y)
+                    y_predict = torch.round(yhat)
 
-                model.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    if phase=='train':
+                        loss.backward()
+                        optimizer.step()
 
                 #template for saving model
                 running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(y_predict==y)
 
-            # epoch_loss = running_loss / dataset_size['phase']
-            # epoch_acc = running_corrects.double() / dataset_size['phase']
+            epoch_loss = running_loss / dataset_size['phase']
+            epoch_acc = running_corrects.double() / dataset_size['phase']
 
-            # if epoch_acc > best_acc:
-            #     best_acc = epoch_acc
-            #     best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+                
+            if phase == 'train':
+                train_loss_sv.append(epoch_loss)
+                train_acc_sv.append(epoch_acc)
+            else:
+                val_loss_sv.append(epoch_loss)
+                val_acc_sv.append(epoch_acc)
 
-                # torch.save(best_model_wts, osp.join(Config['./'], Config['./'], 'model.pth'))
-                # print('Model saved at: {}'.format(osp.join(Config['./'], Config['./'], 'model.pth')))
-
+        torch.save(best_model_wts, osp.join(MODEL_PATH, 'model.pth'))
+        print('Model saved at: {}'.format(osp.join(MODEL_PATH, 'model.pth')))
             
-            
-            print(f'Epoch: {epoch+1:02d}, ' +
-                f'Loss: {running_loss / len(dataloader.dataset):.4f}, ' + 
-                f'accuracy: {running_corrects / dataset_size[phase]}')
+        print(f'Epoch: {epoch+1:02d}, ' +
+            f'Loss: {running_loss / len(dataloader.dataset):.4f}, ' + 
+            f'accuracy: {running_corrects / dataset_size[phase]}')
 
     print('Finished Training')
+    return train_loss_sv, val_loss_sv, train_acc_sv, val_acc_sv
 
 
 def plot(train_loss, val_loss, train_acc, val_acc, title=""): 
@@ -123,22 +135,56 @@ def plot(train_loss, val_loss, train_acc, val_acc, title=""):
         fig.suptitle(title)
     plt.show()
 
+def test_model(dataloader, model, criterion, optimizer, device, num_epochs, dataset_size):
+    model.eval()
+
+    for epoch in tqdm(range(num_epochs)):
+        ids_all = []
+        predictions_all = []
+        for phase in ['test']:
+            for x, ids in tqdm(dataloader[phase]):
+                x = torch.transpose(x,1,2)
+                x = x.to(device)
+                optimizer.zero_grad()
+
+                with torch.set_grad_enabled(False):
+                    yhat = model(x)
+                    y_predict = torch.round(yhat)
+                
+                ids_all.extend(ids)
+                predictions_all.extend(y_predict)
+        header = ['id', 'target']
+        result = list(map(list, zip(ids_all, predictions_all)))
+        with open('submission.csv', 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(result)
+
+
 
 
 if __name__ == '__main__':
     device = 'cuda' if (torch.cuda.is_available) else 'cpu'
 
     dataloaders, dataset_size = get_dataloader(64,6)
-    dataloader = dataloaders['train']
-    # dataloader_test = dataloaders['test']
 
-    model = Model(input_size=EMBEDDING_DIM, hidden_size=HIDDEN_DIM, output_size=1)
-    print(model)
-    model.to(device)
-    criterion = nn.BCELoss()
-    learning_rate = 0.01
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    train_model(dataloader, model, criterion, optimizer, device, num_epochs = 25, dataset_size=dataset_size)
+    val = input("train data or test data, enter 'train' or 'test': ")
 
+    if val == 'train':
+        model = Model(input_size=EMBEDDING_DIM, hidden_size=HIDDEN_DIM, output_size=1)
+        print(model)
+        model.to(device)
+        
+        criterion = nn.BCELoss()
+        learning_rate = 0.01
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        train_loss, val_loss, train_acc, val_acc = train_model(dataloaders, model, criterion, optimizer, device, num_epochs = 25, dataset_size=dataset_size)
+
+        print(train_loss, val_loss, train_acc, val_acc)
+        plot(train_loss, val_loss, train_acc, val_acc)
+    elif val == 'test':
+        model = Model(input_size=EMBEDDING_DIM, hidden_size=HIDDEN_DIM, output_size=1)
+        model.load_state_dict(torch.load(osp.join(MODEL_PATH, 'model.pth')))
+        model.eval()
 
 

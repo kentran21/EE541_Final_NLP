@@ -6,53 +6,51 @@ import pickle
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
-Train_DIR1 = "/Users/anfen/Documents/EE541_final_data"
-Train_DIR2  = "."
-Train_DIR1 = Train_DIR2
-Test_DIR = "."
+Train_DIR = "/Users/anfen/Documents/EE541_final_data"
+# Train_DIR  = "."
+Test_DIR = "/Users/anfen/Documents/EE541_final_data"
+# Test_DIR = "."
 
 
+def create_dataset_train_val():
+    with open(Train_DIR + "/dict_train.pkl", 'rb') as f:
+        data = pickle.load(f)
+
+    with open(Train_DIR + '/ids_train.pkl', 'rb') as f:
+        ids = pickle.load(f)
+    embeddings = []
+    labels = []
+    for _id in ids:
+        embeddings.append(torch.Tensor(data[_id]['embedding']))
+        labels.append(torch.Tensor([int(data[_id]['target'])]))
+    X_train, y_train, X_val, y_val = train_test_split(embeddings, labels, test_size=0.2)
+    return X_train, y_train, X_val, y_val
+
+#### Commented out original above, below modified in order to run ####
 # def create_dataset_train():
-#     with open(Train_DIR1 + "/dict.pkl", 'rb') as f:
+#     with open(Train_DIR1 + "/dict_train.pkl", 'rb') as f:
 #         data = pickle.load(f)
-
-#     with open(Train_DIR1 + '/ids.pkl', 'rb') as f:
+#     with open(Train_DIR1 + '/ids_train.pkl', 'rb') as f:
+        
 #         ids = pickle.load(f)
 #     embeddings = []
 #     labels = []
 #     for id in ids:
 #         embeddings.append(torch.Tensor(data[id]['embedding']))
 #         labels.append(torch.Tensor([int(data[id]['target'])]))
-#     X_train, y_train, X_val, y_val = train_test_split(embeddings, labels, test_size=0.2)
-#     return X_train, y_train, X_val, y_val
-
-#### Commented out original above, below modified in order to run ####
-def create_dataset_train():
-    with open(Train_DIR1 + "/dict.pkl", 'rb') as f:
-        data = pickle.load(f)
-
-    with open(Train_DIR1 + '/ids.pkl', 'rb') as f:
-        ids = pickle.load(f)
-    embeddings = []
-    labels = []
-    for id in ids:
-        embeddings.append(torch.Tensor(data[id]['embedding']))
-        labels.append(torch.Tensor([int(data[id]['target'])]))
-    return embeddings, labels
+#     return embeddings, labels
 
 def create_dataset_test():
-    with open(Test_DIR + "/dict.pkl", 'rb') as f:
+    with open(Test_DIR + "/dict_test.pkl", 'rb') as f:
         data = pickle.load(f)
 
-    with open(Test_DIR + '/ids.pkl', 'rb') as f:
+    with open(Test_DIR + '/ids_test.pkl', 'rb') as f:
         ids = pickle.load(f)
     embeddings = []
-    labels = []
-    for id in ids:
-        embeddings.append(data[ids]['embedding'])
-        labels.append(int(data[ids]['target']))
+    for _id in ids:
+        embeddings.append(torch.Tensor(data[_id]['embedding']))
     
-    return embeddings, labels
+    return embeddings, ids
 
 class custom_Dataset(Dataset):
     def __init__(self, embeddings, labels):
@@ -67,38 +65,36 @@ class custom_Dataset(Dataset):
         label = self.labels[idx]
 
         #embedding 50x768 and target (0x1)
-        # sample = {"Embedding": embedding, "Label": label}
-        # return sample
         return embedding, label
 
 def get_dataloader(batch_size, num_workers):
-    # X_train, y_train, X_val, y_val = create_dataset_train()
-    # X_test, y_test = create_dataset_test()
-
-    # train_set = custom_Dataset(X_train, y_train)
-    # val_set = custom_Dataset(X_val, y_val)
-    # test_set = custom_Dataset(X_test, y_test)
-
-    # dataset_size = {'train': len(y_train), 'val': len(y_train), 'test': len(y_test)}
-    # datasets = {'train': train_set, 'val': val_set, 'test': test_set}
-    # dataloaders = {x: DataLoader(datasets[x],
-    #                              shuffle=True if x=='train' else False,
-    #                              batch_size=batch_size,
-    #                              num_workers=num_workers)
-    #                              for x in ['train', 'val', 'test']}
-
-    #### Commented out original above, below modified in order to run ####
-    X_train, y_train = create_dataset_train()
+    X_train, y_train, X_val, y_val = create_dataset_train_val()
+    X_test, y_test = create_dataset_test()
 
     train_set = custom_Dataset(X_train, y_train)
+    val_set = custom_Dataset(X_val, y_val)
+    test_set = custom_Dataset(X_test, y_test)
 
-    dataset_size = {'train': len(y_train)}
-    datasets = {'train': train_set}
+    dataset_size = {'train': len(y_train), 'val': len(y_train), 'test': len(y_test)}
+    datasets = {'train': train_set, 'val': val_set, 'test': test_set}
     dataloaders = {x: DataLoader(datasets[x],
                                  shuffle=True if x=='train' else False,
                                  batch_size=batch_size,
                                  num_workers=num_workers)
-                                 for x in ['train']}
+                                 for x in ['train', 'val', 'test']}
+
+    #### Commented out original above, below modified in order to run ####
+    # X_train, y_train = create_dataset_train()
+
+    # train_set = custom_Dataset(X_train, y_train)
+
+    # dataset_size = {'train': len(y_train)}
+    # datasets = {'train': train_set}
+    # dataloaders = {x: DataLoader(datasets[x],
+    #                              shuffle=True if x=='train' else False,
+    #                              batch_size=batch_size,
+    #                              num_workers=num_workers)
+    #                              for x in ['train']}
                         
     return dataloaders, dataset_size
 
