@@ -10,6 +10,7 @@ import pandas as pd
 import pickle
 import os.path as osp
 import csv
+import copy
 
 from torchsummary import summary
 from torch.utils.data import DataLoader, Dataset
@@ -27,8 +28,9 @@ class Model(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         
-        self.rnn = nn.LSTM(self.input_size, self.hidden_size, batch_first=True)
+        self.rnn = nn.GRU(self.input_size, self.hidden_size, batch_first=True)
         self.fc = nn.Linear(self.hidden_size, self.output_size)
+        self.dropout = nn.Dropout(0.2)
         self.sigm = nn.Sigmoid()
         
     # create function to init state
@@ -43,9 +45,10 @@ class Model(nn.Module):
         out, h = self.rnn(x, h)
         # out = self.fc(out[:, 0, :])   maybe this is correct  
         out = self.fc(out[:, -1, :])
+        out = self.dropout(out)
         out = self.sigm(out)
         
-        #return out, h
+        #return out
         return out
         
 
@@ -76,6 +79,7 @@ def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dat
 
                 with torch.set_grad_enabled(phase=='train'):
                     yhat = model(x)
+
                     loss = criterion(yhat, y)
                     y_predict = torch.round(yhat)
 
@@ -86,10 +90,9 @@ def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dat
                 #template for saving model
                 running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(y_predict==y)
-
-            epoch_loss = running_loss / dataset_size['phase']
-            epoch_acc = running_corrects.double() / dataset_size['phase']
-
+            epoch_loss = running_loss / dataset_size[phase]
+            epoch_acc = running_corrects.double() / dataset_size[phase]
+            epoch_acc = epoch_acc.detach().cpu().numpy()
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -101,12 +104,15 @@ def train_model(dataloader, model, criterion, optimizer, device, num_epochs, dat
                 val_loss_sv.append(epoch_loss)
                 val_acc_sv.append(epoch_acc)
 
+            print(f'Phase: {phase}, ' +
+                f'Epoch: {epoch+1:02d}, ' +
+                f'Loss: {running_loss / dataset_size[phase]:.4f}, ' + 
+                f'accuracy: {running_corrects / dataset_size[phase]}')
+
         torch.save(best_model_wts, osp.join(MODEL_PATH, 'model.pth'))
         print('Model saved at: {}'.format(osp.join(MODEL_PATH, 'model.pth')))
             
-        print(f'Epoch: {epoch+1:02d}, ' +
-            f'Loss: {running_loss / len(dataloader.dataset):.4f}, ' + 
-            f'accuracy: {running_corrects / dataset_size[phase]}')
+        
 
     print('Finished Training')
     return train_loss_sv, val_loss_sv, train_acc_sv, val_acc_sv
@@ -135,30 +141,30 @@ def plot(train_loss, val_loss, train_acc, val_acc, title=""):
         fig.suptitle(title)
     plt.show()
 
-def test_model(dataloader, model, criterion, optimizer, device, num_epochs, dataset_size):
-    model.eval()
+def test_model(dataloader, model, device, dataset_size):
 
-    for epoch in tqdm(range(num_epochs)):
-        ids_all = []
-        predictions_all = []
-        for phase in ['test']:
-            for x, ids in tqdm(dataloader[phase]):
-                x = torch.transpose(x,1,2)
-                x = x.to(device)
-                optimizer.zero_grad()
+    ids_all = []
+    predictions_all = []
+    for phase in ['test']:
+        for x, ids in tqdm(dataloader[phase]):
+            print(x)
+            x = torch.transpose(x,1,2)
+            x = x.to(device)
+            optimizer.zero_grad()
 
-                with torch.set_grad_enabled(False):
-                    yhat = model(x)
-                    y_predict = torch.round(yhat)
-                
-                ids_all.extend(ids)
-                predictions_all.extend(y_predict)
-        header = ['id', 'target']
-        result = list(map(list, zip(ids_all, predictions_all)))
-        with open('submission.csv', 'w', encoding='UTF8', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerows(result)
+            with torch.set_grad_enabled(False):
+                yhat = model(x)
+                y_predict = torch.round(yhat)
+            
+            ids_all.extend(ids)
+            predictions_all.extend(y_predict)
+
+    header = ['id', 'target']
+    result = list(map(list, zip(ids_all, predictions_all)))
+    with open('submission.csv', 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(result)
 
 
 
@@ -176,15 +182,17 @@ if __name__ == '__main__':
         model.to(device)
         
         criterion = nn.BCELoss()
-        learning_rate = 0.01
+        learning_rate = 0.001
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-        train_loss, val_loss, train_acc, val_acc = train_model(dataloaders, model, criterion, optimizer, device, num_epochs = 25, dataset_size=dataset_size)
+        train_loss, val_loss, train_acc, val_acc = train_model(dataloaders, model, criterion, optimizer, device, num_epochs = 10, dataset_size=dataset_size)
 
         print(train_loss, val_loss, train_acc, val_acc)
         plot(train_loss, val_loss, train_acc, val_acc)
     elif val == 'test':
         model = Model(input_size=EMBEDDING_DIM, hidden_size=HIDDEN_DIM, output_size=1)
         model.load_state_dict(torch.load(osp.join(MODEL_PATH, 'model.pth')))
+        model.to(device)
         model.eval()
+        test_model(dataloaders, model, device, dataset_size)
 
 

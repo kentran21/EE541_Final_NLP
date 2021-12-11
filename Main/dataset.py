@@ -6,10 +6,12 @@ import pickle
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
-Train_DIR = "/Users/anfen/Documents/EE541_final_data"
-# Train_DIR  = "."
-Test_DIR = "/Users/anfen/Documents/EE541_final_data"
-# Test_DIR = "."
+# Train_DIR = "/Users/anfen/Documents/EE541_final_data"
+Train_DIR  = "."
+# Test_DIR = "/Users/anfen/Documents/EE541_final_data"
+Test_DIR = "."
+
+
 
 
 def create_dataset_train_val():
@@ -23,8 +25,8 @@ def create_dataset_train_val():
     for _id in ids:
         embeddings.append(torch.Tensor(data[_id]['embedding']))
         labels.append(torch.Tensor([int(data[_id]['target'])]))
-    X_train, y_train, X_val, y_val = train_test_split(embeddings, labels, test_size=0.2)
-    return X_train, y_train, X_val, y_val
+    X_train, X_val, y_train , y_val = train_test_split(embeddings, labels, test_size=0.2)
+    return X_train, X_val, y_train , y_val
 
 #### Commented out original above, below modified in order to run ####
 # def create_dataset_train():
@@ -52,7 +54,7 @@ def create_dataset_test():
     
     return embeddings, ids
 
-class custom_Dataset(Dataset):
+class train_val_Dataset(Dataset):
     def __init__(self, embeddings, labels):
         self.embeddings = embeddings
         self.labels = labels
@@ -67,15 +69,30 @@ class custom_Dataset(Dataset):
         #embedding 50x768 and target (0x1)
         return embedding, label
 
+class test_Dataset(Dataset):
+    def __init__(self, embeddings, ids):
+        self.embeddings = embeddings
+        self.ids = ids
+    
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        embedding = self.embeddings[idx]
+        _id = self.ids[idx]
+
+        #embedding 50x768 and target (0x1)
+        return embedding, _id
+
 def get_dataloader(batch_size, num_workers):
-    X_train, y_train, X_val, y_val = create_dataset_train_val()
-    X_test, y_test = create_dataset_test()
+    X_train, X_val, y_train , y_val = create_dataset_train_val() 
+    X_test, ids_test = create_dataset_test()
 
-    train_set = custom_Dataset(X_train, y_train)
-    val_set = custom_Dataset(X_val, y_val)
-    test_set = custom_Dataset(X_test, y_test)
+    train_set = train_val_Dataset(X_train, y_train)
+    val_set = train_val_Dataset(X_val, y_val)
+    test_set = test_Dataset(X_test, ids_test)
 
-    dataset_size = {'train': len(y_train), 'val': len(y_train), 'test': len(y_test)}
+    dataset_size = {'train': len(y_train), 'val': len(y_val), 'test': len(ids_test)}
     datasets = {'train': train_set, 'val': val_set, 'test': test_set}
     dataloaders = {x: DataLoader(datasets[x],
                                  shuffle=True if x=='train' else False,
