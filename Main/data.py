@@ -93,16 +93,16 @@ if __name__ == '__main__':
     if val == 'train':
         data, ids = process_sentences(FILE_DIR_TRAIN)
         # save
-        with open("dict_train.pkl", "wb") as tf:
+        with open("../Data/dict_train.pkl", "wb") as tf:
             pickle.dump(data,tf)
-        with open("ids_train.pkl", "wb") as tf:
+        with open("../Data/ids_train.pkl", "wb") as tf:
             pickle.dump(ids,tf)
     elif val == 'test':
         data, ids = process_sentences(FILE_DIR_TEST, False)
         # save
-        with open("dict_test.pkl", "wb") as tf:
+        with open("../Data/dict_test.pkl", "wb") as tf:
             pickle.dump(data,tf)
-        with open("ids_test.pkl", "wb") as tf:
+        with open("../Data/ids_test.pkl", "wb") as tf:
             pickle.dump(ids,tf)
     else:
         print("invalid input")

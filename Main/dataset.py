@@ -6,13 +6,8 @@ import pickle
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
-# Train_DIR = "/Users/anfen/Documents/EE541_final_data"
-Train_DIR  = "."
-# Test_DIR = "/Users/anfen/Documents/EE541_final_data"
-Test_DIR = "."
-
-
-
+Train_DIR  = "../Data"
+Test_DIR = "../Data"
 
 def create_dataset_train_val():
     with open(Train_DIR + "/dict_train.pkl", 'rb') as f:
@@ -27,20 +22,6 @@ def create_dataset_train_val():
         labels.append(torch.Tensor([int(data[_id]['target'])]))
     X_train, X_val, y_train , y_val = train_test_split(embeddings, labels, test_size=0.2)
     return X_train, X_val, y_train , y_val
-
-#### Commented out original above, below modified in order to run ####
-# def create_dataset_train():
-#     with open(Train_DIR1 + "/dict_train.pkl", 'rb') as f:
-#         data = pickle.load(f)
-#     with open(Train_DIR1 + '/ids_train.pkl', 'rb') as f:
-        
-#         ids = pickle.load(f)
-#     embeddings = []
-#     labels = []
-#     for id in ids:
-#         embeddings.append(torch.Tensor(data[id]['embedding']))
-#         labels.append(torch.Tensor([int(data[id]['target'])]))
-#     return embeddings, labels
 
 def create_dataset_test():
     with open(Test_DIR + "/dict_test.pkl", 'rb') as f:
@@ -75,13 +56,13 @@ class test_Dataset(Dataset):
         self.ids = ids
     
     def __len__(self):
-        return len(self.labels)
+        return len(self.ids)
 
     def __getitem__(self, idx):
         embedding = self.embeddings[idx]
         _id = self.ids[idx]
 
-        #embedding 50x768 and target (0x1)
+        # embedding 50x768 and target (0x1)
         return embedding, _id
 
 def get_dataloader(batch_size, num_workers):
@@ -96,23 +77,10 @@ def get_dataloader(batch_size, num_workers):
     datasets = {'train': train_set, 'val': val_set, 'test': test_set}
     dataloaders = {x: DataLoader(datasets[x],
                                  shuffle=True if x=='train' else False,
-                                 batch_size=batch_size,
+                                 batch_size=1 if x=='test' else batch_size,
                                  num_workers=num_workers)
                                  for x in ['train', 'val', 'test']}
-
-    #### Commented out original above, below modified in order to run ####
-    # X_train, y_train = create_dataset_train()
-
-    # train_set = custom_Dataset(X_train, y_train)
-
-    # dataset_size = {'train': len(y_train)}
-    # datasets = {'train': train_set}
-    # dataloaders = {x: DataLoader(datasets[x],
-    #                              shuffle=True if x=='train' else False,
-    #                              batch_size=batch_size,
-    #                              num_workers=num_workers)
-    #                              for x in ['train']}
-                        
+     
     return dataloaders, dataset_size
 
 if __name__ == '__main__':
